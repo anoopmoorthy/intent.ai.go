@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, private">
+	<title>Winning bid</title>
+	<style>
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+
+		html,
+		body {
+			width: 100%;
+			height: 100%;
+			background-color: #f5f5f5;
+			color: #333;
+			line-height: 1.6;
+			font-family: Arial, sans-serif;
+		}
+
+		.container {
+			display: flex;
+			width: 100%;
+			height: 50%;
+			margin-top: 10px;
+		}
+
+		.left-column {
+			flex: 1 1 0;
+			width: 50&;
+		}
+
+		.right-column {
+			flex: 1 1 0;
+			width: 50&;
+		}
+
+		.textarea-container {
+			flex-grow: 1;
+			margin: 0 10px;
+		}
+
+		textarea {
+			display: block;
+			margin: 0px auto;
+			width: 100%;
+			height: 100%;
+			padding: 10px;
+			box-sizing: border-box;
+			resize: none;
+			border: 1px solid #ccc;
+			border-radius: 5px;
+			background-color: #f9f9f9;
+		}
+
+		select {
+			display: block;
+			width: 50%;
+			margin: 20px auto;
+			border: 1px solid #ccc;
+			border-radius: 5px;
+			background-color: #f9f9f9;
+			padding: 5px;
+			box-sizing: border-box;
+		}
+
+		table {
+			width: 50%;
+			margin: 20px auto;
+			border-collapse: collapse;
+		}
+
+		th,
+		td {
+			border: 1px solid #555555;
+			padding: 8px;
+			text-align: left;
+		}
+
+		.scrollable-table {
+			max-height: 200px;
+			border-radius: 5px;
+			overflow-y: auto;
+			overflow-x: hidden;
+		}
+
+		#select {
+			width: 100%;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Winning bid</h1>
+	<div class="container">
+		<div class="left-column">
+			<select id="select" size="5" multiple></select>
+		</div>
+		<div class="right-column">
+			<table id="statisticsTable">
+				<thead>
+					<tr>
+						<th>Max</th>
+						<th>Min</th>
+						<th>Response Rate</th>
+						<th>Average</th>
+						<th>IAB</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr id="statisticsRow">
+						<td></td>
+						<td></td>
+						<td></td>
+						<td></td>
+						<td></td>
+					</tr>
+				</tbody>
+			</table>
+			<div class="scrollable-table">
+				<table id="iabCountTable">
+					<thead>
+						<tr>
+							<th>IAB</th>
+							<th>Count</th>
+						</tr>
+					</thead>
+					<tbody id="iabCountTableBody"></tbody>
+				</table>
+			</div>
+		</div>
+
+	</div>
+	<div class="container">
+		<div class="textarea-container">
+			<h2>Bid Request</h2>
+			<textarea id="bidrequest" readonly></textarea>
+		</div>
+		<div class="textarea-container">
+			<h2>Ad Campaigns</h2>
+			<textarea id="adcampaigns" readonly></textarea>
+		</div>
+		<div class="textarea-container">
+			<h2>Winning Bid</h2>
+			<textarea id="winningbid" readonly></textarea>
+		</div>
+	</div>
+
+	<script>
+		//const eventSource = new EventSource('http://localhost:5758/bid/response');
+		setInterval(function () {
+			const xhr = new XMLHttpRequest();
+			xhr.open('GET', 'http://localhost:5758/bid/response', false);
+			xhr.send();
+
+			if (xhr.status !== 200) {
+				console.error('Error fetching data:', xhr.statusText);
+				return null;
+			}
+			console.log(xhr.responseText);
+			const parsed = JSON.parse(xhr.responseText);
+			data.push(parsed);
+			updateSelect();
+		}, 1000);
+		const selectElement = document.getElementById("select");
+		const bidrequest = document.getElementById("bidrequest");
+		const adcampaigns = document.getElementById("adcampaigns");
+		const winningbid = document.getElementById("winningbid");
+		const statisticsTable = document.getElementById("statisticsTable").getElementsByTagName('tbody')[0];
+		const statisticsRow = document.getElementById("statisticsRow");
+		const iabCountTableBody = document.getElementById("iabCountTableBody");
+		let data = [];
+
+		selectElement.onchange = function (event) {
+			const content = data[parseInt(event.target.value)];
+			bidrequest.value = JSON.stringify(content.bidRequest, undefined, 3);
+			adcampaigns.value = JSON.stringify(content.campaigns, undefined, 3);
+			winningbid.value = JSON.stringify(content.winningCampaign, undefined, 3);
+			updateStatisticsTable(content.statistic);
+		};
+
+		function updateStatisticsTable(statistic) {
+			const { max, min, count, average, iab } = statistic;
+			statisticsRow.innerHTML = `
+				<td>${max.toFixed(2)}</td>
+				<td>${min.toFixed(2)}</td>
+				<td>${count}</td>
+				<td>${average.toFixed(2)}</td>
+				<td>${iab}</td>
+			`;
+		}
+
+		function updateSelect() {
+			const index = data.length - 1;
+			const option = document.createElement("option");
+			option.text = "BidRequest[ " + index + " ]";
+			option.value = index;
+			selectElement.add(option);
+		}
+
+
+		function updateIABCountTable() {
+			const iabCounts = {}; // Object to store IAB counts
+
+			// Loop through each item in the data array
+			data.forEach(item => {
+				const { statistic } = item;
+
+				// Check if the statistic object has the 'iab' key
+				if (statistic && statistic.iab) {
+					const iab = statistic.iab;
+
+					// Increment the count for this IAB in the iabCounts object
+					iabCounts[iab] = (iabCounts[iab] || 0) + 1;
+				}
+			});
+
+			// Clear existing table rows
+			iabCountTableBody.innerHTML = "";
+
+			// Loop through the iabCounts object and add rows to the table
+			for (const iab in iabCounts) {
+				const count = iabCounts[iab];
+				const newRow = iabCountTableBody.insertRow();
+				newRow.insertCell().textContent = iab;
+				newRow.insertCell().textContent = count;
+			}
+		}
+
+		// Update the IAB count table every second
+		setInterval(updateIABCountTable, 1000);
+
+	</script>
+</body>
+
+</html>
